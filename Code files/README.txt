@@ -1,38 +1,38 @@
 
 Given:
 
-		~/hw2_syscalls.h - GIVEN 
+		~/hw2_syscalls.h - GIVEN
 
 Implement:
 
 	Kernel space:
 
 		/kernel/hw2_syscalls.c -> implement syscalls 243-245.
-		
+
 	User space:
-			
+
 		~/hw2_syscalls.c
 
 Update:
 
 		/arch/i386/kernel/entry.S  -> add syscalls 243-245
-		
-		/include/linux/sched.h -> 
-		
+
+		/include/linux/sched.h ->
+
 			1) define SCHED_SHORT.
 			2) add sched_param's fields.
 			3) add task_struct's fields.
-		
-		/kernel/fork.c -> 
-		
+
+		/kernel/fork.c ->
+
 			1) initiate values of new task_struct members.
 			2) prevent SCHED_SHORTs from calling it.
 
-		/kernel/sys.c -> maybe to change a little the some first functions corresponds scheduling, later is irrelevant. 
+		/kernel/sys.c -> maybe to change a little the some first functions corresponds scheduling, later is irrelevant.
 						 Understand when to use who = pis and who = uid
-		
+
 		/kernel/sched.c -> all the logic and algorithms. need to get the understanding what to implement and where.
-			
+
 			1) check how RR, FIFO suspends OTHER and implement the same mechanism where: RR, FIFO suspends others, and SHORT suspend OTHER.
 			2) short_prio updating with compatibility to the rest of the system.
 			3) implementing a run_queue for SHORTs / check if it's possible to iterate over the
@@ -43,8 +43,8 @@ Update:
 
 Maybe:
 
-		/kernel/exit.c -> maybe not needed (when SCHED_SHORT calls exit(), 
-						  remaining time slice shall not added to the father) - 
+		/kernel/exit.c -> maybe not needed (when SCHED_SHORT calls exit(),
+						  remaining time slice shall not added to the father) :
 						  alternative place = sched_exit() in sched.c.
-						  
+
 		learn to use prio_array_t and other kernel data structs
