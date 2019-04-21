@@ -44,7 +44,7 @@ Update:
 Maybe:
 
 		/kernel/exit.c -> maybe not needed (when SCHED_SHORT calls exit(),
-						  remaining time slice shall not added to the father) :
+						  remaining time slice shall not added to the father) -
 						  alternative place = sched_exit() in sched.c.
 
 		learn to use prio_array_t and other kernel data structs
