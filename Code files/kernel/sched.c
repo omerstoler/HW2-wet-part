@@ -854,6 +854,9 @@ pick_next_task:
 	}
 
 	idx = sched_find_first_bit(array->bitmap);
+	/* =================== Might add short_queue in here ============
+	check if prio is < 100
+	*/
 	queue = array->queue + idx;
 	next = list_entry(queue->next, task_t, run_list);
 
@@ -864,11 +867,11 @@ switch_tasks:
 	if (likely(prev != next)) {
 		rq->nr_switches++;
 		rq->curr = next;
-	
+
 		prepare_arch_switch(rq);
-		prev = context_switch(prev, next);
+		prev = context_switch(prev, next); //======= check what is differrent in NEW PROCESS case =====
 		barrier();
-		rq = this_rq();
+		rq = this_rq(); //==== does this matter? =====
 		finish_arch_switch(rq);
 	} else
 		spin_unlock_irq(&rq->lock);
@@ -876,7 +879,7 @@ switch_tasks:
 
 	reacquire_kernel_lock(current);
 	if (need_resched())
-		goto need_resched;
+		goto need_resched; //======= Why jumping to the top? ======
 }
 
 /*
@@ -935,7 +938,7 @@ void __wake_up_sync(wait_queue_head_t *q, unsigned int mode, int nr_exclusive)
 }
 
 #endif
- 
+
 void complete(struct completion *x)
 {
 	unsigned long flags;
@@ -1008,7 +1011,7 @@ long interruptible_sleep_on_timeout(wait_queue_head_t *q, long timeout)
 void sleep_on(wait_queue_head_t *q)
 {
 	SLEEP_ON_VAR
-	
+
 	current->state = TASK_UNINTERRUPTIBLE;
 
 	SLEEP_ON_HEAD
@@ -1019,7 +1022,7 @@ void sleep_on(wait_queue_head_t *q)
 long sleep_on_timeout(wait_queue_head_t *q, long timeout)
 {
 	SLEEP_ON_VAR
-	
+
 	current->state = TASK_UNINTERRUPTIBLE;
 
 	SLEEP_ON_HEAD
@@ -1909,4 +1912,3 @@ struct low_latency_enable_struct __enable_lowlatency = { 0, };
 #endif
 
 #endif	/* LOWLATENCY_NEEDED */
-
