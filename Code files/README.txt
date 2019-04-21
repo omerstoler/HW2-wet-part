@@ -29,7 +29,7 @@ Update:
 			2) prevent SCHED_SHORTs from calling it.
 
 		/kernel/sys.c -> maybe to change a little the some first functions corresponds scheduling, later is irrelevant.
-						 Understand when to use who = pis and who = uid
+						 Understand when to use who = pis and who = uid - in sys_setpriority
 
 		/kernel/sched.c -> all the logic and algorithms. need to get the understanding what to implement and where.
 

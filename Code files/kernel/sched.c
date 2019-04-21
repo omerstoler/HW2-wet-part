@@ -139,6 +139,7 @@ struct runqueue {
 	signed long nr_uninterruptible;
 	task_t *curr, *idle;
 	prio_array_t *active, *expired, arrays[2];
+	// ====== prio_array_t *short_prio_array;
 	int prev_nr_running[NR_CPUS];
 	task_t *migration_thread;
 	list_t migration_queue;
@@ -1131,7 +1132,7 @@ static inline task_t *find_process_by_pid(pid_t pid)
 {
 	return pid ? find_task_by_pid(pid) : current;
 }
-
+// ========== Check when is it called?
 static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 {
 	struct sched_param lp;
@@ -1196,6 +1197,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if (array)
 		deactivate_task(p, task_rq(p));
 	retval = 0;
+	//========= Might change the policy assigment
 	p->policy = policy;
 	p->rt_priority = lp.sched_priority;
 	if (policy != SCHED_OTHER)
