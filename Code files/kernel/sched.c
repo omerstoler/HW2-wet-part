@@ -139,7 +139,7 @@ struct runqueue {
 	signed long nr_uninterruptible;
 	task_t *curr, *idle;
 	prio_array_t *active, *expired, arrays[2];
-	// ====== prio_array_t *short_prio_array;
+	// ====== prio_array_t *short_prio_array; + updating length of arrays
 	int prev_nr_running[NR_CPUS];
 	task_t *migration_thread;
 	list_t migration_queue;
@@ -151,7 +151,7 @@ static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 #define this_rq()		cpu_rq(smp_processor_id())
 #define task_rq(p)		cpu_rq((p)->cpu)
 #define cpu_curr(cpu)		(cpu_rq(cpu)->curr)
-#define rt_task(p)		((p)->prio < MAX_RT_PRIO)
+#define rt_task(p)		((p)->prio < MAX_RT_PRIO) //======= Need change? =====
 
 /*
  * Default context-switch locking:
@@ -230,7 +230,7 @@ static inline void enqueue_task(struct task_struct *p, prio_array_t *array)
 static inline int effective_prio(task_t *p)
 {
 	int bonus, prio;
-
+	// ========= What to change here? seems like nothing scheduler_tick
 	/*
 	 * Here we scale the actual sleep average [0 .... MAX_SLEEP_AVG]
 	 * into the -5 ... 0 ... +5 bonus/penalty range.
@@ -257,7 +257,7 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 {
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
 	prio_array_t *array = rq->active;
-
+	// ========== Activating sleeping short proccesses ==========
 	if (!rt_task(p) && sleep_time) {
 		/*
 		 * This code gives a bonus to interactive tasks. We update
@@ -271,6 +271,7 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 			p->sleep_avg = MAX_SLEEP_AVG;
 		p->prio = effective_prio(p);
 	}
+	// ========== Activating sleeping short proccesses ==========
 	enqueue_task(p, array);
 	rq->nr_running++;
 }
@@ -377,6 +378,7 @@ repeat_lock_task:
 		/*
 		 * If sync is set, a resched_task() is a NOOP
 		 */
+		// ======== Build logic for - other < short < real time
 		if (p->prio < rq->curr->prio)
 			resched_task(rq->curr);
 		success = 1;
@@ -761,6 +763,11 @@ void scheduler_tick(int user_tick, int system)
 		}
 		goto out;
 	}
+	/*======================
+	Add short_task members updating
+	Check what to do upon finishing short_slice
+	===========================*/
+
 	/*
 	 * The task was running during this tick - update the
 	 * time slice counter and the sleep average. Note: we
@@ -1041,6 +1048,8 @@ void set_user_nice(task_t *p, long nice)
 	prio_array_t *array;
 	runqueue_t *rq;
 
+	// ======== No setting nice for SHORT ===========
+
 	if (TASK_NICE(p) == nice || nice < -20 || nice > 19)
 		return;
 	/*
@@ -1081,7 +1090,7 @@ out_unlock:
 asmlinkage long sys_nice(int increment)
 {
 	long nice;
-
+	//======== If short then no nice for you =======
 	/*
 	 *	Setpriority might change our priority at the same moment.
 	 *	We don't have to worry. Conceptually one call occurs first
@@ -1115,6 +1124,7 @@ asmlinkage long sys_nice(int increment)
  */
 int task_prio(task_t *p)
 {
+	//======== What to change here? seems like nothing =======
 	return p->prio - MAX_USER_RT_PRIO;
 }
 
@@ -1132,7 +1142,7 @@ static inline task_t *find_process_by_pid(pid_t pid)
 {
 	return pid ? find_task_by_pid(pid) : current;
 }
-// ========== Check when is it called?
+// ========== Check when is it called? or policy purposes
 static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 {
 	struct sched_param lp;
@@ -1248,6 +1258,7 @@ out_nounlock:
 
 asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 {
+	//======= Since we changed the struct we change the assigments ===========
 	struct sched_param lp;
 	int retval = -EINVAL;
 	task_t *p;
@@ -1385,6 +1396,8 @@ asmlinkage long sys_sched_yield(void)
 		list_add_tail(&current->run_list, array->queue + current->prio);
 		goto out_unlock;
 	}
+	
+	// ======= if short_task ==========
 
 	list_del(&current->run_list);
 	if (!list_empty(array->queue + current->prio)) {
@@ -1400,7 +1413,7 @@ asmlinkage long sys_sched_yield(void)
 	else
 		current->prio = i;
 
-	list_add(&current->run_list, array->queue[i].next);
+	list_add(&current->run_list, array->queue[i].next); // ==== Seems that prio decays over time =======
 	__set_bit(i, array->bitmap);
 
 out_unlock:
@@ -1628,9 +1641,11 @@ void __init sched_init(void)
 		rq = cpu_rq(i);
 		rq->active = rq->arrays;
 		rq->expired = rq->arrays + 1;
+		// ========= Shorts initialization ===========
 		spin_lock_init(&rq->lock);
 		INIT_LIST_HEAD(&rq->migration_queue);
 
+		// ========= Iterations modification j->3 ===========
 		for (j = 0; j < 2; j++) {
 			array = rq->arrays + j;
 			for (k = 0; k < MAX_PRIO; k++) {

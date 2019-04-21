@@ -350,7 +350,7 @@ struct task_struct {
 
 	unsigned long policy;
 	unsigned long cpus_allowed;
-	unsigned int time_slice, first_time_slice;
+	unsigned int time_slice, first_time_slice; //====== short_time_slice member =======
 
 	task_t *next_task, *prev_task;
 
