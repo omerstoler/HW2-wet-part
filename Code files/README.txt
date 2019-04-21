@@ -38,6 +38,9 @@ Update:
 			3) implementing a run_queue for SHORTs / check if it's possible to iterate over the
 				in original OTHER's, and if it has the wanted behavior.
 
+			maybe build a SCHED_SHORT prio_array_t and connect to it when in find_first_bit() in schedule() it search for next process to run
+			- (if first bit is in an index bigger than 99, SCHED_SHORT will be preferred)
+
 
 
 
