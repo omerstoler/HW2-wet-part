@@ -138,11 +138,12 @@ struct runqueue {
 	unsigned long nr_running, nr_switches, expired_timestamp;
 	signed long nr_uninterruptible;
 	task_t *curr, *idle;
-	prio_array_t *active, *expired, arrays[2];
-	// ====== prio_array_t *short_prio_array; + updating length of arrays
+	prio_array_t *active, *expired, arrays[3]; 	// ====== [arrays] = 3
 	int prev_nr_running[NR_CPUS];
 	task_t *migration_thread;
 	list_t migration_queue;
+	// ======== New queue for short processes
+	prio_array_t *short_prio_array;
 } ____cacheline_aligned;
 
 static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
@@ -257,8 +258,13 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 {
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
 	prio_array_t *array = rq->active;
+	int short_flag = p->policy==SCHED_SHORT;
 	// ========== Activating sleeping short proccesses ==========
-	if (!rt_task(p) && sleep_time) {
+	if(short_flag) {
+		array = rq->short_prio_array;
+	}
+
+	if (!rt_task(p) && sleep_time && !short_flag) {
 		/*
 		 * This code gives a bonus to interactive tasks. We update
 		 * an 'average sleep time' value here, based on
@@ -379,9 +385,35 @@ repeat_lock_task:
 		 * If sync is set, a resched_task() is a NOOP
 		 */
 		// ======== Build logic for - other < short < real time
-		if (p->prio < rq->curr->prio)
+
+		//===========================
+		int curr_short, proc_short;
+		curr_short = (rq->curr->policy == SCHED_SHORT);
+		proc_short = (p->policy == SCHED_SHORT);
+		if (curr_short && proc_short){
+			if (p->short_prio < rq->curr->short_prio){
+				resched_task(rq->curr);
+		}
+		//============= Only until the test time!!!
+		else if(curr_short && !proc_short){
 			resched_task(rq->curr);
+		}
+		/* Uncomment when short > other test!
+		else if(curr_short && !proc_short){
+			if(rt_task(p)){
+				resched_task(rq->curr);
+			}
+		}
+		else if(!curr_short && proc_short){
+			if(!rt_task(curr_short)){
+				resched_task(rq->curr);
+			}
+		}*/
+		else if (p->prio < rq->curr->prio){
+			resched_task(rq->curr);
+		}
 		success = 1;
+		//=========================
 	}
 	p->state = TASK_RUNNING;
 	task_rq_unlock(rq, &flags);
@@ -426,8 +458,10 @@ void wake_up_forked_process(task_t * p)
  */
 void sched_exit(task_t * p)
 {
+	// ========= Add flag for short_task to not add time slice
+	int short_flag = p->policy != SCHED_SHORT;
 	__cli();
-	if (p->first_time_slice) {
+	if (p->first_time_slice && short_flag) {
 		current->time_slice += p->time_slice;
 		if (unlikely(current->time_slice > MAX_TIMESLICE))
 			current->time_slice = MAX_TIMESLICE;
@@ -767,7 +801,25 @@ void scheduler_tick(int user_tick, int system)
 	Add short_task members updating
 	Check what to do upon finishing short_slice
 	===========================*/
+	if (unlikely(p->policy == SCHED_SHORT && !--p->short_time_slice)) {
+		p->static_prio += 7;
+		sleep_avg = 0.5 * MAX_SLEEP_AVG;
+		// Copied from others
+		dequeue_task(p, rq->short_prio_array);
+		set_tsk_need_resched(p);
+		p->prio = effective_prio(p);
+		p->first_time_slice = 0;
+		p->time_slice = TASK_TIMESLICE(p);
 
+		if (!TASK_INTERACTIVE(p) || EXPIRED_STARVING(rq)) {
+			if (!rq->expired_timestamp)
+				rq->expired_timestamp = jiffies;
+		}
+		/* put it at the end of the queue: */
+		enqueue_task(p, rq->active);
+		goto out;
+	}
+	// =====================
 	/*
 	 * The task was running during this tick - update the
 	 * time slice counter and the sleep average. Note: we
@@ -811,7 +863,7 @@ asmlinkage void schedule(void)
 	runqueue_t *rq;
 	prio_array_t *array;
 	list_t *queue;
-	int idx;
+	int idx, idx_short;
 
 	if (unlikely(in_interrupt()))
 		BUG();
@@ -849,9 +901,11 @@ pick_next_task:
 		rq->expired_timestamp = 0;
 		goto switch_tasks;
 	}
-
+//==========================================
 	array = rq->active;
-	if (unlikely(!array->nr_active)) {
+	array_short = rq->short_prio_array;
+	// ===== Make sure that shorts & active are empty
+	if (unlikely(!array->nr_active && !array_short->nr_active)) {
 		/*
 		 * Switch the active and expired arrays.
 		 */
@@ -862,6 +916,29 @@ pick_next_task:
 	}
 
 	idx = sched_find_first_bit(array->bitmap);
+	idx_short = sched_find_first_bit(array->bitmap);
+	/* ======== Dummy logic - shorts are last=========*/
+	if (idx != MAX_PRIO){
+		queue = array->queue + idx;
+	}
+	else if(idx_short != MAX_PRIO) {
+		queue = array_short->queue + idx_short;
+	}
+	next = list_entry(queue->next, task_t, run_list);
+
+	/**/
+
+	/* ======== Real logic - shorts are between 99 and 100=========
+	if (idx < MAX_RT_PRIO || idx_short == MAX_PRIO){
+		queue = array->queue + idx;
+	}
+	else {
+		queue = array_short->queue + idx_short;
+	}
+	next = list_entry(queue->next, task_t, run_list);
+
+	*/
+
 	/* =================== Might add short_queue in here ============
 	check if prio is < 100
 	*/
@@ -1208,6 +1285,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		deactivate_task(p, task_rq(p));
 	retval = 0;
 	//========= Might change the policy assigment
+	//========= Assigment of short_prio time slice
 	p->policy = policy;
 	p->rt_priority = lp.sched_priority;
 	if (policy != SCHED_OTHER)
@@ -1396,7 +1474,7 @@ asmlinkage long sys_sched_yield(void)
 		list_add_tail(&current->run_list, array->queue + current->prio);
 		goto out_unlock;
 	}
-	
+
 	// ======= if short_task ==========
 
 	list_del(&current->run_list);

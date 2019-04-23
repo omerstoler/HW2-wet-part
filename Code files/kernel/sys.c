@@ -203,6 +203,7 @@ asmlinkage long sys_setpriority(int which, int who, int niceval)
 	if (which > 2 || which < 0)
 		return -EINVAL;
 
+
 	/* normalize: avoid signed division (rounding problems) */
 	error = -ESRCH;
 	if (niceval < -20)
@@ -224,7 +225,10 @@ asmlinkage long sys_setpriority(int which, int who, int niceval)
 		if (niceval < task_nice(p) && !capable(CAP_SYS_NICE))
 			error = -EACCES;
 		else
+		{
+			//============ Add check if the process is short and then continue
 			set_user_nice(p, niceval);
+		}
 	}
 	read_unlock(&tasklist_lock);
 

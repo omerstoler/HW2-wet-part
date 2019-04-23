@@ -119,11 +119,14 @@ extern unsigned long nr_uninterruptible(void);
 #define SCHED_OTHER		0
 #define SCHED_FIFO		1
 #define SCHED_RR		2
-//========== #define SCHED_SHORT		5
+// ======= added new def for SCHED_SHORT
+#define SCHED_SHORT		5
 
+// ====== added new fields for sched param
 struct sched_param {
-	int sched_priority;
-	//======== Add fields
+	int sched_priority; // ignored for SHORT processes
+	int requested_time; // between 1 to 3000
+	int sched_short_prio; // between 0 to 139
 };
 
 struct completion;
@@ -453,6 +456,10 @@ struct task_struct {
 
 /* journalling filesystem info */
 	void *journal_info;
+//====New Members====
+	int short_prio;
+	int short_time_slice;
+//===================
 };
 
 /*
