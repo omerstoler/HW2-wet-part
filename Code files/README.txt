@@ -34,7 +34,7 @@ Update:
 		/kernel/sched.c -> all the logic and algorithms. need to get the understanding what to implement and where.
 
 			1) check how RR, FIFO suspends OTHER and implement the same mechanism where: RR, FIFO suspends others, and SHORT suspend OTHER.
-			2) short_prio updating with compatibility to the rest of the system.
+			2) short_prio updating with compatibility to the rest of the system. - *Make sure that short < others at first for debug*
 			3) implementing a run_queue for SHORTs / check if it's possible to iterate over the
 				in original OTHER's, and if it has the wanted behavior.
 
