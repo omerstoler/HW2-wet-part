@@ -459,6 +459,7 @@ struct task_struct {
 //====New Members====
 	int short_prio;
 	int short_time_slice;
+	int requested_time;
 //===================
 };
 

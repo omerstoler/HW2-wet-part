@@ -606,7 +606,9 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 			goto fork_out;
 	}
 	//====== Add restriction of short_prio by accessing current field
-
+ 	if (current->policy==SCHED_SHORT)
+		goto fork_out;
+	//=====================================
 
 	retval = -ENOMEM;
 	p = alloc_task_struct();
@@ -786,7 +788,11 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		 * COW overhead when the child exec()s afterwards.
 		 */
 		current->need_resched = 1;
-		//======== Add new inits for new task_struct members
+		//========  Add new inits for new task_struct members ======
+		current->short_prio = MAX_PRIO;
+		current->short_time_slice = 0;
+		current->requested_time = 0;
+		//==========================================================
 fork_out:
 	return retval;
 

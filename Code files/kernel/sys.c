@@ -226,8 +226,13 @@ asmlinkage long sys_setpriority(int which, int who, int niceval)
 			error = -EACCES;
 		else
 		{
-			//============ Add check if the process is short and then continue
-			set_user_nice(p, niceval);
+			//============ Add check if the process is short and then continue =======
+			if (p->policy==SCHED_SHORT)
+				error = -EPERM; // ====== Ask about success for process group that consists SHORT & OTHERS
+			else
+				set_user_nice(p, niceval);
+			//========================================================================
+
 		}
 	}
 	read_unlock(&tasklist_lock);

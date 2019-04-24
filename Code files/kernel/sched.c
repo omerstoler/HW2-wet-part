@@ -259,7 +259,7 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
 	prio_array_t *array = rq->active;
 	int short_flag = p->policy==SCHED_SHORT;
-	// ========== Activating sleeping short proccesses ==========
+	// ========== Adding condition to activate short processes as RT ==========
 	if(short_flag) {
 		array = rq->short_prio_array;
 	}
@@ -277,7 +277,6 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 			p->sleep_avg = MAX_SLEEP_AVG;
 		p->prio = effective_prio(p);
 	}
-	// ========== Activating sleeping short proccesses ==========
 	enqueue_task(p, array);
 	rq->nr_running++;
 }
@@ -380,13 +379,11 @@ repeat_lock_task:
 		}
 		if (old_state == TASK_UNINTERRUPTIBLE)
 			rq->nr_uninterruptible--;
-		activate_task(p, rq);
+		activate_task(p, rq); // every waiting comes here TASK_INTERRUPTIBLE / TASK_UNINTERRUPTIBLE
 		/*
 		 * If sync is set, a resched_task() is a NOOP
 		 */
 		// ======== Build logic for - other < short < real time
-
-		//===========================
 		int curr_short, proc_short;
 		curr_short = (rq->curr->policy == SCHED_SHORT);
 		proc_short = (p->policy == SCHED_SHORT);
@@ -394,11 +391,12 @@ repeat_lock_task:
 			if (p->short_prio < rq->curr->short_prio){
 				resched_task(rq->curr);
 		}
-		//============= Only until the test time!!!
+		//============= Dummy logic ============ REMOVE
 		else if(curr_short && !proc_short){
 			resched_task(rq->curr);
 		}
-		/* Uncomment when short > other test!
+		/*================ Real Logic ============= UNCOMMENT
+
 		else if(curr_short && !proc_short){
 			if(rt_task(p)){
 				resched_task(rq->curr);
@@ -408,7 +406,8 @@ repeat_lock_task:
 			if(!rt_task(curr_short)){
 				resched_task(rq->curr);
 			}
-		}*/
+		}
+		========================================== */
 		else if (p->prio < rq->curr->prio){
 			resched_task(rq->curr);
 		}
@@ -458,10 +457,10 @@ void wake_up_forked_process(task_t * p)
  */
 void sched_exit(task_t * p)
 {
-	// ========= Add flag for short_task to not add time slice
-	int short_flag = p->policy != SCHED_SHORT;
+	// ==== Add flag for short_task to not add time slice ====
+	int non_short_flag = (p->policy != SCHED_SHORT);
 	__cli();
-	if (p->first_time_slice && short_flag) {
+	if (p->first_time_slice && non_short_flag) {
 		current->time_slice += p->time_slice;
 		if (unlikely(current->time_slice > MAX_TIMESLICE))
 			current->time_slice = MAX_TIMESLICE;
@@ -471,9 +470,10 @@ void sched_exit(task_t * p)
 	 * If the child was a (relative-) CPU hog then decrease
 	 * the sleep_avg of the parent as well.
 	 */
-	if (p->sleep_avg < current->sleep_avg)
+	if (p->sleep_avg < current->sleep_avg && non_short_flag)
 		current->sleep_avg = (current->sleep_avg * EXIT_WEIGHT +
 			p->sleep_avg) / (EXIT_WEIGHT + 1);
+	//========================================================
 }
 
 #if CONFIG_SMP
@@ -758,6 +758,7 @@ static inline void idle_tick(void)
 void scheduler_tick(int user_tick, int system)
 {
 	int cpu = smp_processor_id();
+	int tmp;
 	runqueue_t *rq = this_rq();
 	task_t *p = current;
 
@@ -802,7 +803,12 @@ void scheduler_tick(int user_tick, int system)
 	Check what to do upon finishing short_slice
 	===========================*/
 	if (unlikely(p->policy == SCHED_SHORT && !--p->short_time_slice)) {
-		p->static_prio += 7;
+		p->policy = SCHED_OTHER;
+		tmp = p->static_prio + 7;
+		if(tmp > MAX_PRIO-1)
+			p->static_prio = MAX_PRIO-1;
+		else
+			p->static_prio = tmp;
 		sleep_avg = 0.5 * MAX_SLEEP_AVG;
 		// Copied from others
 		dequeue_task(p, rq->short_prio_array);
@@ -916,7 +922,7 @@ pick_next_task:
 	}
 
 	idx = sched_find_first_bit(array->bitmap);
-	idx_short = sched_find_first_bit(array->bitmap);
+	idx_short = sched_find_first_bit(array_short->bitmap);
 	/* ======== Dummy logic - shorts are last=========*/
 	if (idx != MAX_PRIO){
 		queue = array->queue + idx;
@@ -942,8 +948,9 @@ pick_next_task:
 	/* =================== Might add short_queue in here ============
 	check if prio is < 100
 	*/
-	queue = array->queue + idx;
-	next = list_entry(queue->next, task_t, run_list);
+	//=============== Previous logic ====================
+	//queue = array->queue + idx;
+	//next = list_entry(queue->next, task_t, run_list);
 
 switch_tasks:
 	prefetch(next);
@@ -1126,7 +1133,8 @@ void set_user_nice(task_t *p, long nice)
 	runqueue_t *rq;
 
 	// ======== No setting nice for SHORT ===========
-
+	if(p->policy==SCHED_SHORT)
+		return;
 	if (TASK_NICE(p) == nice || nice < -20 || nice > 19)
 		return;
 	/*
@@ -1173,6 +1181,11 @@ asmlinkage long sys_nice(int increment)
 	 *	We don't have to worry. Conceptually one call occurs first
 	 *	and we have a single winner.
 	 */
+	 //=====================================
+	if (current->policy==SCHED_SHORT)
+ 		return -EPERM;
+	 //=====================================
+
 	if (increment < 0) {
 		if (!capable(CAP_SYS_NICE))
 			return -EPERM;
@@ -1201,8 +1214,11 @@ asmlinkage long sys_nice(int increment)
  */
 int task_prio(task_t *p)
 {
-	//======== What to change here? seems like nothing =======
-	return p->prio - MAX_USER_RT_PRIO;
+	//======== What to change here? We did what was ordered =======
+	if(p->policy == SCHED_SHORT)
+		return p->short_prio;
+	else
+		return p->prio - MAX_USER_RT_PRIO;
 }
 
 int task_nice(task_t *p)
@@ -1258,7 +1274,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	else {
 		retval = -EINVAL;
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
-				policy != SCHED_OTHER)
+				policy != SCHED_OTHER && policy != SCHED_SHORT) //====== Adding our policy as a legal one
 			goto out_unlock;
 	}
 
@@ -1269,9 +1285,18 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	retval = -EINVAL;
 	if (lp.sched_priority < 0 || lp.sched_priority > MAX_USER_RT_PRIO-1)
 		goto out_unlock;
+	// ================ short_prio & time_slice validity check ===============
+	if (lp.sched_short_prio < 0 || lp.sched_short_prio > MAX_PRIO-1)
+		goto out_unlock;
+	if (lp.requested_time < 1 || lp.requested_time > 3000) //===== Might change because 1ms is too short
+		goto out_unlock;
+	if (p->policy==SCHED_SHORT) //===== Prevent SHORT becoming anything else
+		goto out_unlock;
+	if (policy == SCHED_SHORT && (p->policy == SCHED_RR || p->policy == SCHED_FIFO) ) //===== Prevent RT becoming SHORT
+		goto out_unlock;
+	//========================================================================
 	if ((policy == SCHED_OTHER) != (lp.sched_priority == 0))
 		goto out_unlock;
-
 	retval = -EPERM;
 	if ((policy == SCHED_FIFO || policy == SCHED_RR) &&
 	    !capable(CAP_SYS_NICE))
@@ -1284,16 +1309,23 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if (array)
 		deactivate_task(p, task_rq(p));
 	retval = 0;
-	//========= Might change the policy assigment
-	//========= Assigment of short_prio time slice
+
 	p->policy = policy;
+	//========= Assigment of short_prio time slice =========
+	if (policy == SCHED_SHORT){
+		p->short_prio = lp.sched_short_prio;
+		p->short_time_slice= lp.requested_time * HZ/1000;
+		p->requested_time= lp.requested_time * HZ/1000;
+	}
+	//======================================================
 	p->rt_priority = lp.sched_priority;
-	if (policy != SCHED_OTHER)
+	if (policy != SCHED_OTHER && policy != SCHED_SHORT) //======= SHORTS - change in condition ======
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else
-		p->prio = p->static_prio;
+		p->prio = p->static_prio; // should apply to shorts as well
+
 	if (array)
-		activate_task(p, task_rq(p));
+		activate_task(p, task_rq(p)); // The inner change in activate_task() will provide safe insertion to the new queue (no stupid calcs that we do for OTHERS)
 
 out_unlock:
 	task_rq_unlock(rq, &flags);
@@ -1336,7 +1368,6 @@ out_nounlock:
 
 asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 {
-	//======= Since we changed the struct we change the assigments ===========
 	struct sched_param lp;
 	int retval = -EINVAL;
 	task_t *p;
@@ -1350,6 +1381,10 @@ asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 	if (!p)
 		goto out_unlock;
 	lp.sched_priority = p->rt_priority;
+	//======= Since we changed the struct we change the assigments ===========
+	lp.requested_time = p->requested_time * 1000/HZ; //!!!!!! check with TAs if to return p->requested_time OR  p->short_time_slice !!!!!!
+	lp.sched_short_prio = p->short_prio;
+	// =======================================================================
 	read_unlock(&tasklist_lock);
 
 	/*
@@ -1466,7 +1501,7 @@ out_unlock:
 asmlinkage long sys_sched_yield(void)
 {
 	runqueue_t *rq = this_rq_lock();
-	prio_array_t *array = current->array;
+	prio_array_t *array = current->array; // array holds the actual process' queue
 	int i;
 
 	if (unlikely(rt_task(current))) {
@@ -1476,6 +1511,12 @@ asmlinkage long sys_sched_yield(void)
 	}
 
 	// ======= if short_task ==========
+	if ((current->policy == SCHED_SHORT) && (current->short_time_slice > 0)) {
+		list_del(&current->run_list);
+		list_add_tail(&current->run_list, array->queue + current->short_prio);
+		goto out_unlock;
+	}
+	//=================================
 
 	list_del(&current->run_list);
 	if (!list_empty(array->queue + current->prio)) {
@@ -1712,7 +1753,7 @@ void __init sched_init(void)
 {
 	runqueue_t *rq;
 	int i, j, k;
-
+	int NUM_OF_QUEUES = 3;
 	for (i = 0; i < NR_CPUS; i++) {
 		prio_array_t *array;
 
@@ -1720,11 +1761,14 @@ void __init sched_init(void)
 		rq->active = rq->arrays;
 		rq->expired = rq->arrays + 1;
 		// ========= Shorts initialization ===========
+		rq->short_prio_array = rq->arrays + 2;
+
+
 		spin_lock_init(&rq->lock);
 		INIT_LIST_HEAD(&rq->migration_queue);
 
 		// ========= Iterations modification j->3 ===========
-		for (j = 0; j < 2; j++) {
+		for (j = 0; j < NUM_OF_QUEUES; j++) {
 			array = rq->arrays + j;
 			for (k = 0; k < MAX_PRIO; k++) {
 				INIT_LIST_HEAD(array->queue + k);
@@ -1740,7 +1784,7 @@ void __init sched_init(void)
 	 */
 	rq = this_rq();
 	rq->curr = current;
-	rq->idle = current;
+	rq->idle = current; // ====== The idle does this
 	wake_up_process(current);
 
 	init_timervecs();
