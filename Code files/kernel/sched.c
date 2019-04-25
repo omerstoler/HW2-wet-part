@@ -809,7 +809,7 @@ void scheduler_tick(int user_tick, int system)
 			p->static_prio = MAX_PRIO-1;
 		else
 			p->static_prio = tmp;
-		sleep_avg = 0.5 * MAX_SLEEP_AVG;
+		p->sleep_avg = 0.5 * MAX_SLEEP_AVG;
 		// Copied from others
 		dequeue_task(p, rq->short_prio_array);
 		set_tsk_need_resched(p);
@@ -867,7 +867,7 @@ asmlinkage void schedule(void)
 {
 	task_t *prev, *next;
 	runqueue_t *rq;
-	prio_array_t *array;
+	prio_array_t *array, *array_short;
 	list_t *queue;
 	int idx, idx_short;
 
@@ -924,6 +924,7 @@ pick_next_task:
 	idx = sched_find_first_bit(array->bitmap);
 	idx_short = sched_find_first_bit(array_short->bitmap);
 	/* ======== Dummy logic - shorts are last=========*/
+	// in Dummy logic - just if there are no RTs/ OTHERs, we think of scheduling SHORTs
 	if (idx != MAX_PRIO){
 		queue = array->queue + idx;
 	}
