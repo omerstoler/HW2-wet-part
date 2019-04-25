@@ -259,9 +259,33 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
 	prio_array_t *array = rq->active;
 	int short_flag = p->policy==SCHED_SHORT;
+	int tmp;
 	// ========== Adding condition to activate short processes as RT ==========
 	if(short_flag) {
-		array = rq->short_prio_array;
+		//======== Handling the 1 - 9 ms request time ========
+		if(!p->short_time_slice){
+			/*
+			Penalties come here too because of the 1-9ms times
+			 == We need to handle a running process that becomes short - punish right away
+			 == When a waiting process is changed to SHORT only at wake up i
+
+			*/
+			p->policy = SCHED_OTHER;
+			tmp = p->static_prio + 7;
+			if(tmp > MAX_PRIO-1)
+				p->static_prio = MAX_PRIO-1;
+			else
+				p->static_prio = tmp;
+			p->sleep_avg = 0.5 * MAX_SLEEP_AVG;
+			// Copied from others
+			p->prio = effective_prio(p);
+			p->first_time_slice = 0;
+			p->time_slice = TASK_TIMESLICE(p);
+			// Notice we still leave the flag on so no other calculations will be made
+			/* put it at the end of the queue: */
+		}
+		else
+			array = rq->short_prio_array;
 	}
 
 	if (!rt_task(p) && sleep_time && !short_flag) {
@@ -803,7 +827,7 @@ void scheduler_tick(int user_tick, int system)
 	Add short_task members updating
 	Check what to do upon finishing short_slice
 	===========================*/
-	if (unlikely(p->policy == SCHED_SHORT && !--p->short_time_slice)) {
+	if (unlikely(p->policy == SCHED_SHORT && (!p->short_time_slice || !--p->short_time_slice))) {
 		p->policy = SCHED_OTHER;
 		tmp = p->static_prio + 7;
 		if(tmp > MAX_PRIO-1)
