@@ -169,6 +169,10 @@ extern void flush_scheduled_tasks(void);
 extern int start_context_thread(void);
 extern int current_is_keventd(void);
 
+//=====================================
+extern int sched_short_place_in_queue(task_t* p);
+//====================================
+
 /*
  * Priority of a process goes from 0..MAX_PRIO-1, valid RT
  * priority is 0..MAX_RT_PRIO-1, and SCHED_OTHER tasks are

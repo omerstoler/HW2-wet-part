@@ -254,6 +254,31 @@ static inline int effective_prio(task_t *p)
 	return prio;
 }
 
+int sched_short_place_in_queue(task_t* p)
+{
+	prio_array_t* array;
+	list_t *pos, *head;
+  int count = 0, k;
+
+  array = p->array;
+  for (k = 0; k < MAX_PRIO; k++) {
+
+    head = array->queue + k;
+
+    if (!test_bit(k, array->bitmap))
+      continue;
+
+    list_for_each(pos, head){
+      if((list_entry(pos, task_t, run_list))->pid == p->pid)
+        break;
+      count++;
+    }
+  }
+  return count;
+}
+
+
+
 static inline void activate_task(task_t *p, runqueue_t *rq)
 {
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
