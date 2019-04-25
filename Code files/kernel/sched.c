@@ -390,6 +390,7 @@ repeat_lock_task:
 		if (curr_short && proc_short){
 			if (p->short_prio < rq->curr->short_prio){
 				resched_task(rq->curr);
+			}
 		}
 		//============= Dummy logic ============ REMOVE
 		else if(curr_short && !proc_short){
