@@ -1296,6 +1296,9 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	runqueue_t *rq;
 	task_t *p;
 
+	//printk("1) Hi we go here params:\n f1 = %d ; f2 = %d ; f3 = %d ; \n",param->sched_priority, param->requested_time, param->sched_short_prio);
+
+
 	if (!param || pid < 0)
 		goto out_nounlock;
 
@@ -1329,47 +1332,100 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 			goto out_unlock;
 	}
 
+	//printk("2) policy checks\n");
 	/*
 	 * Valid priorities for SCHED_FIFO and SCHED_RR are
 	 * 1..MAX_USER_RT_PRIO-1, valid priority for SCHED_OTHER is 0.
 	 */
 	retval = -EINVAL;
-	if (lp.sched_priority < 0 || lp.sched_priority > MAX_USER_RT_PRIO-1)
-		goto out_unlock;
-	// ================ short_prio & time_slice validity check ===============
-	if (lp.sched_short_prio < 0 || lp.sched_short_prio > MAX_PRIO-1)
-		goto out_unlock;
-	if (lp.requested_time < 1 || lp.requested_time > 3000) //===== Might change because 1ms is too short
-		goto out_unlock;
+
 	if (p->policy==SCHED_SHORT) //===== Prevent SHORT becoming anything else
+	{
+		//printk("2.1)\n");
+ 		retval = -EPERM;
 		goto out_unlock;
-	if (policy == SCHED_SHORT && (p->policy == SCHED_RR || p->policy == SCHED_FIFO) ) //===== Prevent RT becoming SHORT
-		goto out_unlock;
+	}
+
+
+	if(policy != SCHED_SHORT)
+	{
+		//printk("2.2)\n");
+		if (lp.sched_priority < 0 || lp.sched_priority > MAX_USER_RT_PRIO-1)
+		{
+				//printk("2.2.1)\n");
+				goto out_unlock;
+		}
+		if ((policy == SCHED_OTHER) != (lp.sched_priority == 0))
+		{
+				//printk("2.2.2)\n");
+				goto out_unlock;
+		}
+	}
+	else // shorts
+	{
+		//printk("2.3)\n");
+		// ================ short_prio & time_slice validity check ===============
+		if (lp.sched_short_prio < 0 || lp.sched_short_prio > MAX_PRIO-1)
+		{
+			//printk("2.3.1)\n");
+			goto out_unlock;
+		}
+
+		if (lp.requested_time < 1 || lp.requested_time > 3000) //===== Might change because 1ms is too short
+		{
+			//printk("2.3.2)\n");
+			goto out_unlock;
+		}
+
+		if (p->policy == SCHED_RR || p->policy == SCHED_FIFO) //===== Prevent RT becoming SHORT
+		{
+			//printk("2.3.3)\n");
+			goto out_unlock;
+		}
+	}
+
+
 	//========================================================================
-	if ((policy == SCHED_OTHER) != (lp.sched_priority == 0))
-		goto out_unlock;
+
 	retval = -EPERM;
 	if ((policy == SCHED_FIFO || policy == SCHED_RR) &&
 	    !capable(CAP_SYS_NICE))
+	{
+		//printk("2.4)\n");
 		goto out_unlock;
+	}
+
 	if ((current->euid != p->euid) && (current->euid != p->uid) &&
 	    !capable(CAP_SYS_NICE))
+	{
+		//printk("2.5)\n");
 		goto out_unlock;
+	}
+
+
+	//printk("3) validity checks\n");
 
 	array = p->array;
 	if (array)
 		deactivate_task(p, task_rq(p));
 	retval = 0;
 
+	//printk("4) before - policy = %d\n",p->policy);
 	p->policy = policy;
+	//printk("5) after - policy = %d\n",p->policy);
+
 	//========= Assigment of short_prio time slice =========
 	if (policy == SCHED_SHORT){
 		p->short_prio = lp.sched_short_prio;
 		p->short_time_slice= lp.requested_time * HZ/1000;
-		p->requested_time= lp.requested_time * HZ/1000;
+		p->requested_time= lp.requested_time; // * HZ/1000;
+		p->rt_priority = 0; // ===== Making sure that when it will return to be other with rt_prio = 0
+	}
+	else
+	{
+		p->rt_priority = lp.sched_priority;
 	}
 	//======================================================
-	p->rt_priority = lp.sched_priority;
 	if (policy != SCHED_OTHER && policy != SCHED_SHORT) //======= SHORTS - change in condition ======
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else
@@ -1431,9 +1487,9 @@ asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 	retval = -ESRCH;
 	if (!p)
 		goto out_unlock;
-	lp.sched_priority = p->rt_priority;
+	lp.sched_priority = p->rt_priority; // Should it return rt_prio for a short process?
 	//======= Since we changed the struct we change the assigments ===========
-	lp.requested_time = p->requested_time * 1000/HZ; //!!!!!! check with TAs if to return p->requested_time OR  p->short_time_slice !!!!!!
+	lp.requested_time = p->requested_time;// * 1000/HZ; //!!!!!! check with TAs if to return p->requested_time OR  p->short_time_slice !!!!!!
 	lp.sched_short_prio = p->short_prio;
 	// =======================================================================
 	read_unlock(&tasklist_lock);
