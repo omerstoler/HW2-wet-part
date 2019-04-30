@@ -505,11 +505,11 @@ repeat_lock_task:
 				resched_task(rq->curr);
 			}
 		}
-		//============= Dummy logic ============ REMOVE
+		/*============= Dummy logic ============ REMOVE
 		else if(curr_short && !proc_short){
 			resched_task(rq->curr);
-		}
-		/*================ Real Logic ============= UNCOMMENT
+		}===============================================*/
+		//================ Real Logic ============= UNCOMMENT
 
 		else if(curr_short && !proc_short){
 			if(rt_task(p)){
@@ -521,7 +521,7 @@ repeat_lock_task:
 				resched_task(rq->curr);
 			}
 		}
-		========================================== */
+		//==========================================
 		else if (p->prio < rq->curr->prio){
 			resched_task(rq->curr);
 		}
@@ -1037,7 +1037,8 @@ pick_next_task:
 
 	idx = sched_find_first_bit(array->bitmap);
 	idx_short = sched_find_first_bit(array_short->bitmap);
-	/* ======== Dummy logic - shorts are last=========*/
+
+	/* ======== Dummy logic - shorts are last=========
 	// in Dummy logic - just if there are no RTs/ OTHERs, we think of scheduling SHORTs
 	if (idx != MAX_PRIO){
 		queue = array->queue + idx;
@@ -1047,9 +1048,9 @@ pick_next_task:
 	}
 	next = list_entry(queue->next, task_t, run_list);
 
-	/**/
+	*/
 
-	/* ======== Real logic - shorts are between 99 and 100=========
+	// ======== Real logic - shorts are between 99 and 100=========
 	if (idx < MAX_RT_PRIO || idx_short == MAX_PRIO){
 		queue = array->queue + idx;
 	}
@@ -1058,7 +1059,7 @@ pick_next_task:
 	}
 	next = list_entry(queue->next, task_t, run_list);
 
-	*/
+
 
 	/* =================== Might add short_queue in here ============
 	check if prio is < 100
@@ -1491,10 +1492,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		p->requested_time= lp.requested_time; // * HZ/1000;
 		p->rt_priority = 0; // ===== Making sure that when it will return to be other with rt_prio = 0
 	}
-	else
-	{
-		p->rt_priority = lp.sched_priority;
-	}
+	p->rt_priority = lp.sched_priority;
 	//======================================================
 	if (policy != SCHED_OTHER && policy != SCHED_SHORT) //======= SHORTS - change in condition ======
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
