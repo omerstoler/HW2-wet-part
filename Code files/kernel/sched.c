@@ -152,7 +152,7 @@ static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 #define this_rq()		cpu_rq(smp_processor_id())
 #define task_rq(p)		cpu_rq((p)->cpu)
 #define cpu_curr(cpu)		(cpu_rq(cpu)->curr)
-#define rt_task(p)		((p)->prio < MAX_RT_PRIO) //======= Need change? =====
+#define rt_task(p)		((p)->prio < MAX_RT_PRIO && p->policy != SCHED_SHORT) //======= Need change? =====
 
 /*
  * Default context-switch locking:
@@ -254,123 +254,11 @@ static inline int effective_prio(task_t *p)
 	return prio;
 }
 
-int sched_short_place_in_queue(task_t* p)
-{
-	prio_array_t* array;
-	list_t *pos, *head;
-  int count = 0, k;
-
-  array = p->array;
-  for (k = 0; k < MAX_PRIO; k++) {
-
-    head = array->queue + k;
-
-    if (!test_bit(k, array->bitmap))
-      continue;
-
-    list_for_each(pos, head){
-      if((list_entry(pos, task_t, run_list))->pid == p->pid)
-        break;
-      count++;
-    }
-  }
-  return count;
-}
-
-
-
-int sys_is_short(pid_t pid)
-{
-  task_t* p = find_task_by_pid(pid);
-
-  if (pid < 0 || p == NULL)
-	{
-		return -1*ESRCH;
-	}
-
-  if (p->policy == SCHED_SHORT)
-    return 1;
-  else
-    return 0;
-}
-
-int sys_short_remaining_time ( pid_t pid)
-{
-  task_t* p = find_task_by_pid(pid);
-
-  if (pid < 0 || p == NULL)
-  {
-    return -1*ESRCH;
-  }
-
-  if (p->policy != SCHED_SHORT)
-  {
-    return -1*EINVAL;
-  }
-
-  return (p->short_time_slice * 1000/HZ);
-}
-/*
-int sys_short_place_in_queue(pid_t pid)
-{
-  task_t* p = find_task_by_pid(pid);
-  prio_array_t* array;
-  int count = 0, k;
-  list_t *pos, *head;
-
-  if (pid < 0 || p == NULL)
-  {
-    return -1*ESRCH;
-  }
-
-  if (p->policy != SCHED_SHORT)
-  {
-    return -1*EINVAL;
-  }
-
-  array = p->array;
-  for (k = 0; k < MAX_PRIO; k++) {
-
-    head = array->queue + k;
-    if (array->bitmap[k] == 0)
-      continue;
-
-    list_for_each(pos, head){
-      if(list_entry(pos, task_t, pid) == pid)
-        break;
-      count++;
-    }
-  }
-  return count;
-}
-*/
-
-int sys_short_place_in_queue(pid_t pid)
-{
-  task_t* p = find_task_by_pid(pid);
-
-  if (pid < 0 || p == NULL)
-  {
-    return -1*ESRCH;
-  }
-
-  if (p->policy != SCHED_SHORT)
-  {
-    return -1*EINVAL;
-  }
-
-  //============ wanted ================
-  return sched_short_place_in_queue(p);
-  //====================================
-}
-
-
 static inline void activate_task(task_t *p, runqueue_t *rq)
 {
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
 	prio_array_t *array = rq->active;
 	int short_flag = p->policy==SCHED_SHORT;
-	int tmp;
 	// ========== Adding condition to activate short processes as RT ==========
 	if(short_flag) {
 		//======== NOT Handling the 1 - 9 ms request time ========
@@ -501,15 +389,16 @@ repeat_lock_task:
 		curr_short = (rq->curr->policy == SCHED_SHORT);
 		proc_short = (p->policy == SCHED_SHORT);
 		if (curr_short && proc_short){
-			if (p->short_prio < rq->curr->short_prio){
+			if (p->prio < rq->curr->prio){
 				resched_task(rq->curr);
 			}
 		}
-		/*============= Dummy logic ============ REMOVE
+		//============= Dummy logic ============ REMOVE
 		else if(curr_short && !proc_short){
 			resched_task(rq->curr);
-		}===============================================*/
-		//================ Real Logic ============= UNCOMMENT
+		}
+		//===============================================
+		/*================ Real Logic ============= UNCOMMENT
 
 		else if(curr_short && !proc_short){
 			if(rt_task(p)){
@@ -517,11 +406,11 @@ repeat_lock_task:
 			}
 		}
 		else if(!curr_short && proc_short){
-			if(!rt_task(curr_short)){
+			if(!rt_task(p)){
 				resched_task(rq->curr);
 			}
 		}
-		//==========================================
+		//==========================================*/
 		else if (p->prio < rq->curr->prio){
 			resched_task(rq->curr);
 		}
@@ -891,7 +780,7 @@ void scheduler_tick(int user_tick, int system)
 	kstat.per_cpu_system[cpu] += system;
 
 	/* Task might have expired already, but not scheduled off yet */
-	if (p->array != rq->active) {
+	if (p->array != rq->active && p->array != rq->short_prio_array) {
 		set_tsk_need_resched(p);
 		return;
 	}
@@ -912,12 +801,19 @@ void scheduler_tick(int user_tick, int system)
 		}
 		goto out;
 	}
+	//================================
+	if(p->policy == SCHED_SHORT && p->short_time_slice)
+		printk("SHORT timeslice: %d\n", p->short_time_slice);
+	//================================
 	/*======================
 	Add short_task members updating
 	Check what to do upon finishing short_slice
 	===========================*/
 	if (unlikely(p->policy == SCHED_SHORT && (!--p->short_time_slice))) {
+		 printk("SHORT finished\n");
+		dequeue_task(p, rq->short_prio_array);
 		p->policy = SCHED_OTHER;
+		 printk("SHORT -> OTHER\n");
 		tmp = p->static_prio + 7;
 		if(tmp > MAX_PRIO-1)
 			p->static_prio = MAX_PRIO-1;
@@ -925,8 +821,6 @@ void scheduler_tick(int user_tick, int system)
 			p->static_prio = tmp;
 		p->sleep_avg = 0.5 * MAX_SLEEP_AVG;
 		// Copied from others
-		dequeue_task(p, rq->short_prio_array);
-		set_tsk_need_resched(p);
 		p->prio = effective_prio(p);
 		p->first_time_slice = 0;
 		p->time_slice = TASK_TIMESLICE(p);
@@ -937,6 +831,7 @@ void scheduler_tick(int user_tick, int system)
 		}
 		/* put it at the end of the queue: */
 		enqueue_task(p, rq->active);
+		printk("array = active\n");
 		goto out;
 	}
 	// =====================
@@ -1029,6 +924,7 @@ pick_next_task:
 		/*
 		 * Switch the active and expired arrays.
 		 */
+		printk("End of epoch\n"); //==== printk
 		rq->active = rq->expired;
 		rq->expired = array;
 		array = rq->active;
@@ -1038,19 +934,20 @@ pick_next_task:
 	idx = sched_find_first_bit(array->bitmap);
 	idx_short = sched_find_first_bit(array_short->bitmap);
 
-	/* ======== Dummy logic - shorts are last=========
+	// ======== Dummy logic - shorts are last=========
 	// in Dummy logic - just if there are no RTs/ OTHERs, we think of scheduling SHORTs
 	if (idx != MAX_PRIO){
 		queue = array->queue + idx;
 	}
 	else if(idx_short != MAX_PRIO) {
 		queue = array_short->queue + idx_short;
+		printk("idx = %d , idx_short = %d\n",idx,idx_short); //==== printk
 	}
 	next = list_entry(queue->next, task_t, run_list);
 
-	*/
 
 	// ======== Real logic - shorts are between 99 and 100=========
+	/*
 	if (idx < MAX_RT_PRIO || idx_short == MAX_PRIO){
 		queue = array->queue + idx;
 	}
@@ -1058,7 +955,7 @@ pick_next_task:
 		queue = array_short->queue + idx_short;
 	}
 	next = list_entry(queue->next, task_t, run_list);
-
+	*/
 
 
 	/* =================== Might add short_queue in here ============
@@ -1074,6 +971,10 @@ switch_tasks:
 
 	if (likely(prev != next)) {
 		rq->nr_switches++;
+		if(rq->curr->policy == SCHED_SHORT)
+		{
+				printk("Bye short one\n"); //==== printk
+		}
 		rq->curr = next;
 
 		prepare_arch_switch(rq);
@@ -1332,7 +1233,7 @@ int task_prio(task_t *p)
 {
 	//======== What to change here? We did what was ordered =======
 	if(p->policy == SCHED_SHORT)
-		return p->short_prio;
+		return p->prio;
 	else
 		return p->prio - MAX_USER_RT_PRIO;
 }
@@ -1481,7 +1382,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 
 	//========= Assigment of short_prio time slice =========
 	if (policy == SCHED_SHORT){
-		p->short_prio = lp.sched_short_prio;
+		p->prio = lp.sched_short_prio;
 
 		if (lp.requested_time < 10){
 			p->short_time_slice = 1; // ticks
@@ -1558,7 +1459,7 @@ asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 	lp.sched_priority = p->rt_priority; // Should it return rt_prio for a short process?
 	//======= Since we changed the struct we change the assigments ===========
 	lp.requested_time = p->requested_time;// * 1000/HZ; //!!!!!! check with TAs if to return p->requested_time OR  p->short_time_slice !!!!!!
-	lp.sched_short_prio = p->short_prio;
+	lp.sched_short_prio = p->prio;
 	// =======================================================================
 	read_unlock(&tasklist_lock);
 
@@ -1688,7 +1589,7 @@ asmlinkage long sys_sched_yield(void)
 	// ======= if short_task ==========
 	if ((current->policy == SCHED_SHORT) && (current->short_time_slice > 0)) {
 		list_del(&current->run_list);
-		list_add_tail(&current->run_list, array->queue + current->short_prio);
+		list_add_tail(&current->run_list, array->queue + current->prio);
 		goto out_unlock;
 	}
 	//=================================
@@ -2226,3 +2127,114 @@ struct low_latency_enable_struct __enable_lowlatency = { 0, };
 #endif
 
 #endif	/* LOWLATENCY_NEEDED */
+
+
+int sched_short_place_in_queue(task_t* p)
+{
+	prio_array_t* array;
+	list_t *pos, *head;
+  int count = 0, k;
+
+  array = p->array;
+  for (k = 0; k < MAX_PRIO; k++) {
+
+    head = array->queue + k;
+
+    if (!test_bit(k, array->bitmap))
+      continue;
+
+    list_for_each(pos, head){
+      if((list_entry(pos, task_t, run_list))->pid == p->pid)
+        break;
+      count++;
+    }
+  }
+  return count;
+}
+
+
+
+int sys_is_short(pid_t pid)
+{
+  task_t* p = find_task_by_pid(pid);
+
+  if (pid < 0 || p == NULL)
+	{
+		return -1*ESRCH;
+	}
+
+  if (p->policy == SCHED_SHORT)
+    return 1;
+  else
+    return 0;
+}
+
+int sys_short_remaining_time ( pid_t pid)
+{
+  task_t* p = find_task_by_pid(pid);
+
+  if (pid < 0 || p == NULL)
+  {
+    return -1*ESRCH;
+  }
+
+  if (p->policy != SCHED_SHORT)
+  {
+    return -1*EINVAL;
+  }
+
+  return (p->short_time_slice * 1000/HZ);
+}
+/*
+int sys_short_place_in_queue(pid_t pid)
+{
+  task_t* p = find_task_by_pid(pid);
+  prio_array_t* array;
+  int count = 0, k;
+  list_t *pos, *head;
+
+  if (pid < 0 || p == NULL)
+  {
+    return -1*ESRCH;
+  }
+
+  if (p->policy != SCHED_SHORT)
+  {
+    return -1*EINVAL;
+  }
+
+  array = p->array;
+  for (k = 0; k < MAX_PRIO; k++) {
+
+    head = array->queue + k;
+    if (array->bitmap[k] == 0)
+      continue;
+
+    list_for_each(pos, head){
+      if(list_entry(pos, task_t, pid) == pid)
+        break;
+      count++;
+    }
+  }
+  return count;
+}
+*/
+
+int sys_short_place_in_queue(pid_t pid)
+{
+  task_t* p = find_task_by_pid(pid);
+
+  if (pid < 0 || p == NULL)
+  {
+    return -1*ESRCH;
+  }
+
+  if (p->policy != SCHED_SHORT)
+  {
+    return -1*EINVAL;
+  }
+
+  //============ wanted ================
+  return sched_short_place_in_queue(p);
+  //====================================
+}

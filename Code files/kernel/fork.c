@@ -789,7 +789,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		 */
 		current->need_resched = 1;
 		//========  Add new inits for new task_struct members ======
-		current->short_prio = MAX_PRIO;
+		//current->short_prio = MAX_PRIO;
 		current->short_time_slice = 0;
 		current->requested_time = 0;
 		//==========================================================

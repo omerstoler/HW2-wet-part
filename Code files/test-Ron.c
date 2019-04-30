@@ -392,24 +392,34 @@ void test20() {
 	assertTest(errno == ESRCH);
 	assertTest(sched_setscheduler(getpid(), SCHED_SHORT, &param14) == 0);
 	assertTest(is_short(getpid()) == 1);
+	while(is_short(getpid()) == 1);
 }
 
 void test21() {
 	int pid = getpid();
 	assertTest(setpriority(0, pid, 10) == 0);
+  printf("Before sched_setscheduler\n");
 	assertTest(sched_setscheduler(pid, SCHED_SHORT, &param15) == 0);
-	assertTest(getpriority(0, pid) == 10);
+	printf("After sched_setscheduler\n");
+  assertTest(getpriority(0, pid) == 10);
+  printf("Before is_short\n");
+  is_short(pid);
+  printf("After is_short, Before loop\n");
 	while(is_short(pid) == 1);
+  printf("After loop\n");
+
 	assertTest(getpriority(0, pid) == 17);
 
 	assertTest(setpriority(0, pid, 10) == 0);
 	assertTest(sched_setscheduler(pid, SCHED_SHORT, &param15) == 0);
 	assertTest(getpriority(0, pid) == 10);
-	while(is_short(pid) == 1);
+  printf("Before 2nd loop\n");
+	//while(is_short(pid) == 1);
 	assertTest(getpriority(0, pid) == 17);
 
 	assertTest(sched_setscheduler(pid, SCHED_SHORT, &param15) == 0);
 	assertTest(getpriority(0, pid) == 17);
+  //printf("Before 3rd loop\n");
 	while(is_short(pid) == 1);
 	assertTest(getpriority(0, pid) == 19);
 }
@@ -599,7 +609,8 @@ void test29() {
 int main() {
 	printf("Starting tests!\n");
 	printf("--------------------------------\n");
-	forkAndTest(test1);
+  /*
+  forkAndTest(test1);
 	forkAndTest(test2);
 	forkAndTest(test3);
 	forkAndTest(test4);
@@ -618,9 +629,11 @@ int main() {
 	forkAndTest(test17);
 	forkAndTest(test18);
 	forkAndTest(test19);
+  */
 	forkAndTest(test20);
-	forkAndTest(test21);
-	forkAndTest(test22);
+	//forkAndTest(test21);
+  /*
+  forkAndTest(test22);
 	forkAndTest(test23);
 	forkAndTest(test24);
 	forkAndTest(test25);
@@ -628,7 +641,7 @@ int main() {
 	forkAndTest(test27);
 	forkAndTest(test28);
 	forkAndTest(test29);
-
+  */
 	printf("Finished testing: don't forget to check for kernel oops with dmesg.\n");
 	return 0;
 }
