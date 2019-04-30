@@ -171,6 +171,9 @@ extern int current_is_keventd(void);
 
 //=====================================
 extern int sched_short_place_in_queue(task_t* p);
+extern int sys_is_short(pid_t pid);
+extern int sys_short_remaining_time ( pid_t pid);
+extern int sys_short_place_in_queue(pid_t pid);
 //====================================
 
 /*
