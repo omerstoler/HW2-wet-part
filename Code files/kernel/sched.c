@@ -394,11 +394,13 @@ repeat_lock_task:
 			}
 		}
 		//============= Dummy logic ============ REMOVE
+		/*
 		else if(curr_short && !proc_short){
 			resched_task(rq->curr);
 		}
+		*/
 		//===============================================
-		/*================ Real Logic ============= UNCOMMENT
+		//================ Real Logic ============= UNCOMMENT
 
 		else if(curr_short && !proc_short){
 			if(rt_task(p)){
@@ -410,7 +412,7 @@ repeat_lock_task:
 				resched_task(rq->curr);
 			}
 		}
-		//==========================================*/
+		//==========================================
 		else if (p->prio < rq->curr->prio){
 			resched_task(rq->curr);
 		}
@@ -803,37 +805,40 @@ void scheduler_tick(int user_tick, int system)
 	}
 	//================================
 	if(p->policy == SCHED_SHORT && p->short_time_slice)
-		printk("SHORT timeslice: %d\n", p->short_time_slice);
+		//printk("SHORT timeslice: %d\n", p->short_time_slice);
 	//================================
 	/*======================
 	Add short_task members updating
 	Check what to do upon finishing short_slice
 	===========================*/
-	if (unlikely(p->policy == SCHED_SHORT && (!--p->short_time_slice))) {
-		 printk("SHORT finished\n");
-		dequeue_task(p, rq->short_prio_array);
-		p->policy = SCHED_OTHER;
-		 printk("SHORT -> OTHER\n");
-		tmp = p->static_prio + 7;
-		if(tmp > MAX_PRIO-1)
-			p->static_prio = MAX_PRIO-1;
-		else
-			p->static_prio = tmp;
-		p->sleep_avg = 0.5 * MAX_SLEEP_AVG;
-		// Copied from others
-		p->prio = effective_prio(p);
-		p->first_time_slice = 0;
-		p->time_slice = TASK_TIMESLICE(p);
+	if (unlikely(p->policy == SCHED_SHORT)){
+		if (unlikely(!--p->short_time_slice)) {
+			 //printk("SHORT finished\n");
+			dequeue_task(p, rq->short_prio_array);
+			p->policy = SCHED_OTHER;
+			 //printk("SHORT -> OTHER\n");
+			tmp = p->static_prio + 7;
+			if(tmp > MAX_PRIO-1)
+				p->static_prio = MAX_PRIO-1;
+			else
+				p->static_prio = tmp;
+			p->sleep_avg = 0.5 * MAX_SLEEP_AVG;
+			// Copied from others
+			p->prio = effective_prio(p);
+			p->first_time_slice = 0;
+			p->time_slice = TASK_TIMESLICE(p);
 
-		if (!TASK_INTERACTIVE(p) || EXPIRED_STARVING(rq)) {
-			if (!rq->expired_timestamp)
-				rq->expired_timestamp = jiffies;
+			if (!TASK_INTERACTIVE(p) || EXPIRED_STARVING(rq)) {
+				if (!rq->expired_timestamp)
+					rq->expired_timestamp = jiffies;
+			}
+			/* put it at the end of the queue: */
+			enqueue_task(p, rq->active);
+			//printk("array = active\n");
 		}
-		/* put it at the end of the queue: */
-		enqueue_task(p, rq->active);
-		printk("array = active\n");
 		goto out;
 	}
+
 	// =====================
 	/*
 	 * The task was running during this tick - update the
@@ -924,7 +929,7 @@ pick_next_task:
 		/*
 		 * Switch the active and expired arrays.
 		 */
-		printk("End of epoch\n"); //==== printk
+		//printk("End of epoch\n"); //==== printk
 		rq->active = rq->expired;
 		rq->expired = array;
 		array = rq->active;
@@ -935,6 +940,7 @@ pick_next_task:
 	idx_short = sched_find_first_bit(array_short->bitmap);
 	// ======== Dummy logic - shorts are last=========
 	// in Dummy logic - just if there are no RTs/ OTHERs, we think of scheduling SHORTs
+	/*
 	if (idx != MAX_PRIO){
 		queue = array->queue + idx;
 	}
@@ -943,10 +949,10 @@ pick_next_task:
 		printk("idx = %d , idx_short = %d\n",idx,idx_short); //==== printk
 	}
 	next = list_entry(queue->next, task_t, run_list);
-
+	*/
 
 	// ======== Real logic - shorts are between 99 and 100=========
-	/*
+
 	if (idx < MAX_RT_PRIO || idx_short == MAX_PRIO){
 		queue = array->queue + idx;
 	}
@@ -954,7 +960,7 @@ pick_next_task:
 		queue = array_short->queue + idx_short;
 	}
 	next = list_entry(queue->next, task_t, run_list);
-	*/
+
 
 
 	/* =================== Might add short_queue in here ============
@@ -970,10 +976,10 @@ switch_tasks:
 
 	if (likely(prev != next)) {
 		rq->nr_switches++;
-		if(rq->curr->policy == SCHED_SHORT)
+		/*if(rq->curr->policy == SCHED_SHORT)
 		{
 				printk("Bye short one\n"); //==== printk
-		}
+		}*/
 		rq->curr = next;
 
 		prepare_arch_switch(rq);
@@ -1391,7 +1397,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		}
 		p->requested_time= lp.requested_time; // * HZ/1000;
 		p->rt_priority = 0; // ===== Making sure that when it will return to be other with rt_prio = 0
-		//======= Check if zombie => set_need_resched(p)
+		//======= TODO: Check if zombie , set_need_resched(p)
 	}
 	p->rt_priority = lp.sched_priority;
 	//======================================================
