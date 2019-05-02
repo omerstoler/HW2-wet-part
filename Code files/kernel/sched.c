@@ -933,7 +933,6 @@ pick_next_task:
 
 	idx = sched_find_first_bit(array->bitmap);
 	idx_short = sched_find_first_bit(array_short->bitmap);
-
 	// ======== Dummy logic - shorts are last=========
 	// in Dummy logic - just if there are no RTs/ OTHERs, we think of scheduling SHORTs
 	if (idx != MAX_PRIO){
@@ -1392,6 +1391,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		}
 		p->requested_time= lp.requested_time; // * HZ/1000;
 		p->rt_priority = 0; // ===== Making sure that when it will return to be other with rt_prio = 0
+		//======= Check if zombie => set_need_resched(p)
 	}
 	p->rt_priority = lp.sched_priority;
 	//======================================================
