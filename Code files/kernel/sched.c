@@ -2137,27 +2137,38 @@ struct low_latency_enable_struct __enable_lowlatency = { 0, };
 
 int sched_short_place_in_queue(task_t* p)
 {
+	// printk("I'm here!\n");
 	prio_array_t* array;
 	list_t *pos, *head;
   int count = 0, k;
-
-  array = p->array;
-  for (k = 0; k < MAX_PRIO; k++) {
-
+	// printk("1\n");
+  array = p->array; // NOTE: maybe PCB is in wait or something so need to check if NULL ======
+	// printk("2\n");
+	if (array = NULL)
+		return -1*EPERM;
+	// printk("3\n");
+  for (k = 0; k < MAX_PRIO; k++)
+	{
     head = array->queue + k;
-
+		// printk("4\n");
     if (!test_bit(k, array->bitmap))
       continue;
-
-    list_for_each(pos, head){
+		printk("5\n");
+    list_for_each(pos, head)
+		{
       if((list_entry(pos, task_t, run_list))->pid == p->pid)
         break;
       count++;
     }
   }
+	printk("6\n");
   return count;
 }
 
+// list_for_each(tmp, &q->task_list) {
+// 	curr = list_entry(tmp, wait_queue_t, task_list);
+//printk("k = %d", k);
+//printk("count = %d", count);
 
 
 int sys_is_short(pid_t pid)
