@@ -1384,7 +1384,6 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	//printk("4) before - policy = %d\n",p->policy);
 	p->policy = policy;
 	//printk("5) after - policy = %d\n",p->policy);
-
 	//========= Assigment of short_prio time slice =========
 	if (policy == SCHED_SHORT){
 		p->prio = lp.sched_short_prio;
@@ -1396,16 +1395,16 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 			p->short_time_slice = lp.requested_time * HZ/1000;
 		}
 		p->requested_time= lp.requested_time; // * HZ/1000;
-		p->rt_priority = 0; // ===== Making sure that when it will return to be other with rt_prio = 0
+		//p->rt_priority = 0; // ===== Making sure that when it will return to be other with rt_prio = 0
 		//======= TODO: Check if zombie , set_need_resched(p)
 	}
-	p->rt_priority = lp.sched_priority;
 	//======================================================
-	if (policy != SCHED_OTHER && policy != SCHED_SHORT) //======= SHORTS - change in condition ======
+	else if (policy != SCHED_OTHER) //======= SHORTS - change in condition ======
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else
 		p->prio = p->static_prio; // should apply to shorts as well
 
+	p->rt_priority = lp.sched_priority;
 	if (array)
 		activate_task(p, task_rq(p)); // The inner change in activate_task() will provide safe insertion to the new queue (no stupid calcs that we do for OTHERS)
 
@@ -2175,7 +2174,7 @@ int sys_is_short(pid_t pid)
     return 0;
 }
 
-int sys_short_remaining_time ( pid_t pid)
+int sys_short_remaining_time(pid_t pid)
 {
   task_t* p = find_task_by_pid(pid);
 
