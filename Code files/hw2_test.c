@@ -162,7 +162,7 @@ static void test_short_place_in_queue() {
                     assertTest(short_place_in_queue(pid2) == 0);
                     assertTest(short_place_in_queue(pid4) == 1);
                     assertTest(short_place_in_queue(pid3) == 2);
-                    assertTest(short_place_in_queue(pid1) == 3);
+                    assertTest(short_place_in_queue(pid1) == 3); //=== FIXME: Check prio logic or search in queue logic
                 }
             }
         }
@@ -266,6 +266,7 @@ int main() {
     pid = fork();
     if (pid == 0) {
         setscheduler_fail_invalid_parameters();
+        printf("errno = %d\n",errno);
         return 0;
     }
     pid = fork();

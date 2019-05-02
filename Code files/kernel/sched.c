@@ -1351,6 +1351,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		if (p->policy == SCHED_RR || p->policy == SCHED_FIFO) //===== Prevent RT becoming SHORT
 		{
 			//printk("2.3.3)\n");
+	 		retval = -EPERM;
 			goto out_unlock;
 		}
 	}
