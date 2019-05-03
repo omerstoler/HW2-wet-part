@@ -6,7 +6,7 @@
 # This script must be run as root
 #
 VERSION='2.4.18-14custom' # change to reflect actual kernel version
-CWD='/usr/src/' # /usr/src directory
+CWD='/usr/src' # /usr/src directory
 
 #
 # Make the kernel image

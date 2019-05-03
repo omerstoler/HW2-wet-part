@@ -37,7 +37,6 @@
 
 #define TRIES 1
 
-
 struct sched_param param1 = {0, 80, 50};
 struct sched_param param2 = {5, 80, 50};
 struct sched_param param3 = {90000, 80, 50};
@@ -649,6 +648,19 @@ void test33() {
 	}
 }
 
+	
+struct sched_param param1_guy = {1, 300, 50};
+struct sched_param param2_guy = {0, 500, 50};
+struct sched_param param3_guy = {1000, 2999, 4};
+struct sched_param param4_guy = {30, 80, 0};
+struct sched_param param5_guy = {-2, 1, 139};
+
+//illegal
+struct sched_param param6_guy = {0, 3001, 50};
+struct sched_param param7_guy = {0, 0, 50};
+struct sched_param param8_guy = {0, 50, -1};
+struct sched_param param9_guy = {0, 50, 140};
+
 void test34() {
 		
 	int pid = fork();
@@ -663,6 +675,113 @@ void test34() {
 		while(is_short(getpid()));
 		exit(0);
 	}
+}
+
+
+//checks transitions from different scheduling types
+void test35(){
+  pid_t pid = getpid();
+  assertTest(sched_setscheduler(pid,SCHED_FIFO,&param1_guy) == 0);
+  assertTest(sched_setscheduler(pid,SCHED_SHORT,&param1_guy) == -1);
+  assertTest(is_short(pid) == 0);
+  assertTest(sched_setscheduler(pid,SCHED_OTHER,&param2_guy) == 0);
+  assertTest(sched_setscheduler(pid,SCHED_SHORT,&param2_guy) == 0);
+  assertTest(is_short(pid) == 1);
+  assertTest(sched_setscheduler(pid,SCHED_SHORT,&param2_guy) != 0);
+  assertTest(sched_setscheduler(pid,SCHED_OTHER,&param2_guy) != 0);
+  assertTest(sched_setscheduler(pid,SCHED_FIFO,&param1_guy) != 0);
+  assertTest(sched_setscheduler(pid,SCHED_RR,&param1_guy) != 0);
+}
+
+//checks illegal SHORT inputs
+void test36()
+{
+    pid_t pid = getpid();
+    assertTest(sched_setscheduler(pid,SCHED_SHORT,&param6_guy) == -1 && errno == EINVAL);
+    assertTest(sched_setscheduler(pid,SCHED_SHORT,&param7_guy) == -1 && errno == EINVAL);
+    assertTest(sched_setscheduler(pid,SCHED_SHORT,&param8_guy) == -1 && errno == EINVAL);
+    assertTest(sched_setscheduler(pid,SCHED_SHORT,&param9_guy) == -1 && errno == EINVAL);
+    assertTest(sched_setscheduler(pid,SCHED_SHORT,&param5_guy) == 0);
+}
+
+//TODO: check if print order is 1,2,3...,9,10
+void test37(){
+    pid_t pid = getpid();
+	printf("numbers 1 to 10 should be printed in order:\n");
+    int son_pid = fork();
+    if (son_pid)
+    {
+        printf("1\n");
+        assertTest(sched_setscheduler(son_pid,SCHED_SHORT,&param4_guy) == 0);
+        printf("6\n");
+        assertTest(short_place_in_queue(pid) == 0);
+        printf("7\n");
+        assertTest(short_place_in_queue(son_pid) == 1);
+        printf("8\n");
+        wait(NULL);
+    }
+    else{
+        printf("2\n");
+        assertTest(is_short(getpid()));
+        printf("3\n");
+        assertTest(!is_short(pid));
+        printf("4\n");
+        assertTest(sched_setscheduler(pid,SCHED_SHORT,&param4_guy) == 0);
+        printf("5\n");
+        assertTest(sched_yield() == 0);
+        printf("9\n");
+        assertTest(is_short(pid));
+        printf("10\n");
+        exit();
+    }
+}
+
+//check penalites parts 1+2 (Short cannot call fork,clone, nice or setpriority)
+void test38(){
+    char* stack = (char*)malloc(5);
+    pid_t pid = getpid();
+    assertTest(sched_setscheduler(pid,SCHED_SHORT,&param1_guy) == 0);
+    assertTest(fork() == -1 && errno == EPERM);
+    assertTest(clone(childFunc, stack, 5, NULL) == -1);
+    assertTest(nice(3) == -1 && errno == EPERM);
+   assertTest(setpriority(0,pid,10) == -1 && errno == EPERM);
+}
+
+//checks getParam for both non SHORT and SHORT proccess
+void test39(){
+    pid_t pid = getpid();
+    assertTest(sched_setscheduler(pid,SCHED_FIFO,&param1_guy) == 0);
+    struct sched_param result;
+    assertTest(sched_getparam(pid, &result) == 0);
+    assertTest(result.sched_priority == param1_guy.sched_priority);
+    assertTest(sched_setscheduler(pid,SCHED_OTHER,&param2_guy) == 0);
+    assertTest(sched_setscheduler(pid,SCHED_SHORT,&param2_guy) == 0);
+    assertTest(sched_getparam(pid, &result) == 0);
+    assertTest(result.sched_short_prio == param2_guy.sched_short_prio);
+    assertTest(result.requested_time == param2_guy.requested_time);
+}
+// a bad attempt to test try_to_wake_up
+void test40(){
+    pid_t pid = getpid();
+    int son_pid1 = fork(),son_pid2 = 0;
+    if(son_pid1){
+        assertTest(sched_setscheduler(pid,SCHED_SHORT,&param3_guy) == 0);
+        assertTest(short_place_in_queue(pid) == 0);
+        wait_for_all_sons();
+    }else{
+        son_pid2 = fork();
+        if(son_pid2){
+            assertTest(sched_setscheduler(son_pid1,SCHED_SHORT,&param2_guy) == 0);
+            assertTest(short_place_in_queue(pid) == 0);
+            assertTest(sched_setscheduler(son_pid2,SCHED_SHORT,&param1_guy) == 0);
+            assertTest(short_place_in_queue(getpid()) == 0);
+            assertTest(short_place_in_queue(son_pid2) == 1);
+            exit();
+        }
+        assertTest(short_place_in_queue(pid) == 0);
+        assertTest(short_place_in_queue(getpid()) == 0);
+        exit();
+    }
 }
 
 int main() {
@@ -704,6 +823,12 @@ int main() {
 	forkAndTest(test32);
 	forkAndTest(test33);
 	forkAndTest(test34);
+	forkAndTest(test35);
+	forkAndTest(test36);
+	forkAndTest(test37);
+	forkAndTest(test38);
+	forkAndTest(test39);
+	forkAndTest(test40);
 	
 	forkAndTest(stress_test1);
 	forkAndTest(stress_test2);

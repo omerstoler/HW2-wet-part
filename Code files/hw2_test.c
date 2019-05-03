@@ -266,7 +266,6 @@ int main() {
     pid = fork();
     if (pid == 0) {
         setscheduler_fail_invalid_parameters();
-        printf("errno = %d\n",errno);
         return 0;
     }
     pid = fork();

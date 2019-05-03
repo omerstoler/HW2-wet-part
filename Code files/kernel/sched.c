@@ -2132,7 +2132,6 @@ int ll_copy_from_user(void *to, const void *from_user, unsigned long len)
 struct low_latency_enable_struct __enable_lowlatency = { 0, };
 #endif
 
-#endif	/* LOWLATENCY_NEEDED */
 
 
 int sched_short_place_in_queue(task_t* p)
@@ -2141,27 +2140,28 @@ int sched_short_place_in_queue(task_t* p)
 	prio_array_t* array;
 	list_t *pos, *head;
   int count = 0, k;
-	// printk("1\n");
+	//printk("1\n");
   array = p->array; // NOTE: maybe PCB is in wait or something so need to check if NULL ======
-	// printk("2\n");
-	if (array = NULL)
+	//printk("2\n");
+	if (array == NULL || !(array->bitmap))
 		return -1*EPERM;
-	// printk("3\n");
+	//printk("3\n");
   for (k = 0; k < MAX_PRIO; k++)
 	{
     head = array->queue + k;
-		// printk("4\n");
-    if (!test_bit(k, array->bitmap))
+		//head = NULL;
+		//printk("4\n");
+    if (array->bitmap[k]==0)
       continue;
-		printk("5\n");
+
     list_for_each(pos, head)
 		{
-      if((list_entry(pos, task_t, run_list))->pid == p->pid)
-        break;
+      if((list_entry(pos, task_t, run_list))->pid == p->pid) //===== TODO: Add logic to perfect tests
+        return count;
       count++;
     }
   }
-	printk("6\n");
+	//printk("6\n");
   return count;
 }
 
@@ -2255,3 +2255,4 @@ int sys_short_place_in_queue(pid_t pid)
   return sched_short_place_in_queue(p);
   //====================================
 }
+#endif	/* LOWLATENCY_NEEDED */

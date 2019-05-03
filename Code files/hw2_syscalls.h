@@ -17,6 +17,7 @@ struct sched_param {
 #define SCHED_RR		2
 #define SCHED_SHORT     5
 
+//typedef int pid_t;
 
 
 int is_short ( pid_t pid) {
