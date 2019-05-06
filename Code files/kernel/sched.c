@@ -388,6 +388,7 @@ repeat_lock_task:
 		int curr_short, proc_short;
 		curr_short = (rq->curr->policy == SCHED_SHORT);
 		proc_short = (p->policy == SCHED_SHORT);
+
 		if (curr_short && proc_short){
 			if (p->prio < rq->curr->prio){
 				resched_task(rq->curr);
@@ -408,7 +409,7 @@ repeat_lock_task:
 			}
 		}
 		else if(!curr_short && proc_short){
-			if(!rt_task(p)){
+			if(!rt_task(rq->curr)){
 				resched_task(rq->curr);
 			}
 		}
@@ -1398,6 +1399,22 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		p->requested_time= lp.requested_time; // * HZ/1000;
 		//p->rt_priority = 0; // ===== Making sure that when it will return to be other with rt_prio = 0
 		//======= TODO: Check if zombie , set_need_resched(p)
+
+		// ======== Build logic for - other < short < real time
+		int curr_short, proc_short;
+		struct runqueue* rq = task_rq(p);
+
+		curr_short = (rq->curr->policy == SCHED_SHORT);
+		if (curr_short){
+			if (p->prio < rq->curr->prio){
+				resched_task(rq->curr);
+			}
+		}
+		else {
+			if(!rt_task(rq->curr)){
+				resched_task(rq->curr);
+			}
+		}
 	}
 	//======================================================
 	else if (policy != SCHED_OTHER) //======= SHORTS - change in condition ======
@@ -2132,7 +2149,7 @@ int ll_copy_from_user(void *to, const void *from_user, unsigned long len)
 struct low_latency_enable_struct __enable_lowlatency = { 0, };
 #endif
 
-
+#endif	/* LOWLATENCY_NEEDED */
 
 int sched_short_place_in_queue(task_t* p)
 {
@@ -2152,15 +2169,16 @@ int sched_short_place_in_queue(task_t* p)
 		{
 	    head = array->queue + k;
 			//head = NULL;
-			//printk("4\n");
-	    if (array->bitmap[k]==0)
-	      continue;
+			// //printk("4\n");
+	    // if (array->bitmap[k]==0)
+	    //   continue;
 
 	    list_for_each(pos, head)
 			{
 	      if(p->prio < k) //===== TODO: Add logic to perfect tests
 	        return count;
 	      count++;
+				//printk("p in wait : count = %d\n",count);
 	    }
   	}
 	}
@@ -2171,15 +2189,31 @@ int sched_short_place_in_queue(task_t* p)
 		{
 	    head = array->queue + k;
 			//head = NULL;
-			//printk("4\n");
-	    if (array->bitmap[k]==0)
-	      continue;
+			// //printk("4\n");
+	    // if (array->bitmap[k]==0)
+	    //   continue;
 
 	    list_for_each(pos, head)
 			{
-	      if((list_entry(pos, task_t, run_list))->pid == p->pid) //===== TODO: Add logic to perfect tests
+	      //printk("PID=%d , in place = %d \n",(list_entry(pos, task_t, run_list))->pid,count); //===== TODO: Add logic to perfect tests
+	      count++;
+	    }
+  	}
+		count = 0;
+		for (k = 0; k < MAX_PRIO; k++)
+		{
+	    head = array->queue + k;
+			//head = NULL;
+			// //printk("4\n");
+	    // if (array->bitmap[k]==0)
+	    //   continue;
+
+	    list_for_each(pos, head)
+			{
+	      if((list_entry(pos, task_t, run_list)) == p) //===== TODO: Add logic to perfect tests
 	        return count;
 	      count++;
+				//printk("p in short_prio_array : count = %d\n",count);
 	    }
   	}
 	}
@@ -2277,4 +2311,3 @@ int sys_short_place_in_queue(pid_t pid)
   return sched_short_place_in_queue(p);
   //====================================
 }
-#endif	/* LOWLATENCY_NEEDED */

@@ -1,0 +1,6 @@
+arch/i386/kernel/entry.S
+include/linux/sched.h
+kernel/fork.c
+kernel/sched.c
+kernel/sys.c
+kernel/Makefile
