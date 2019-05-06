@@ -2139,15 +2139,18 @@ int sched_short_place_in_queue(task_t* p)
 	// printk("I'm here!\n");
 	prio_array_t* array;
 	list_t *pos, *head;
+	struct runqueue *rq;
   int count = 0, k;
 	//printk("1\n");
   array = p->array; // NOTE: maybe PCB is in wait or something so need to check if NULL ======
 	//printk("2\n");
 	if (array == NULL)
 	{
+		rq = task_rq(p);
+		array = rq->short_prio_array;
 		for (k = 0; k < MAX_PRIO; k++)
 		{
-	    head = rq->short_prio_array->queue + k;
+	    head = array->queue + k;
 			//head = NULL;
 			//printk("4\n");
 	    if (array->bitmap[k]==0)
