@@ -1,4 +1,4 @@
-
+#include <sys/types.h>
 #include <errno.h>
 #include <termios.h>
 
