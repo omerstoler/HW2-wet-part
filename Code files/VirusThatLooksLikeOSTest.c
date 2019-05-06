@@ -37,6 +37,7 @@
 
 #define TRIES 1
 
+
 struct sched_param param1 = {0, 80, 50};
 struct sched_param param2 = {5, 80, 50};
 struct sched_param param3 = {90000, 80, 50};
@@ -771,7 +772,7 @@ void test40(){
     }else{
         son_pid2 = fork();
         if(son_pid2){
-            assertTest(sched_setscheduler(son_pid1,SCHED_SHORT,&param2_guy) == 0);
+            assertTest(sched_setscheduler(getpid(),SCHED_SHORT,&param2_guy) == 0);
             assertTest(short_place_in_queue(pid) == 0);
             assertTest(sched_setscheduler(son_pid2,SCHED_SHORT,&param1_guy) == 0);
             assertTest(short_place_in_queue(getpid()) == 0);

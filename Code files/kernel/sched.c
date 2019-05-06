@@ -2143,24 +2143,43 @@ int sched_short_place_in_queue(task_t* p)
 	//printk("1\n");
   array = p->array; // NOTE: maybe PCB is in wait or something so need to check if NULL ======
 	//printk("2\n");
-	if (array == NULL || !(array->bitmap))
-		return -1*EPERM;
-	//printk("3\n");
-  for (k = 0; k < MAX_PRIO; k++)
+	if (array == NULL)
 	{
-    head = array->queue + k;
-		//head = NULL;
-		//printk("4\n");
-    if (array->bitmap[k]==0)
-      continue;
-
-    list_for_each(pos, head)
+		for (k = 0; k < MAX_PRIO; k++)
 		{
-      if((list_entry(pos, task_t, run_list))->pid == p->pid) //===== TODO: Add logic to perfect tests
-        return count;
-      count++;
-    }
-  }
+	    head = rq->short_prio_array->queue + k;
+			//head = NULL;
+			//printk("4\n");
+	    if (array->bitmap[k]==0)
+	      continue;
+
+	    list_for_each(pos, head)
+			{
+	      if(p->prio < k) //===== TODO: Add logic to perfect tests
+	        return count;
+	      count++;
+	    }
+  	}
+	}
+	//printk("3\n");
+  else
+	{
+		for (k = 0; k < MAX_PRIO; k++)
+		{
+	    head = array->queue + k;
+			//head = NULL;
+			//printk("4\n");
+	    if (array->bitmap[k]==0)
+	      continue;
+
+	    list_for_each(pos, head)
+			{
+	      if((list_entry(pos, task_t, run_list))->pid == p->pid) //===== TODO: Add logic to perfect tests
+	        return count;
+	      count++;
+	    }
+  	}
+	}
 	//printk("6\n");
   return count;
 }
