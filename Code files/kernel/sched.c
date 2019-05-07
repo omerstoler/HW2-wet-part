@@ -1403,16 +1403,18 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		// ======== Build logic for - other < short < real time
 		int curr_short, proc_short;
 		struct runqueue* rq = task_rq(p);
-
-		curr_short = (rq->curr->policy == SCHED_SHORT);
-		if (curr_short){
-			if (p->prio < rq->curr->prio){
-				resched_task(rq->curr);
+		if(p->state == TASK_RUNNING)
+		{
+			curr_short = (rq->curr->policy == SCHED_SHORT);
+			if (curr_short){
+				if (p->prio < rq->curr->prio){
+					resched_task(rq->curr);
+				}
 			}
-		}
-		else {
-			if(!rt_task(rq->curr)){
-				resched_task(rq->curr);
+			else {
+				if(!rt_task(rq->curr)){
+					resched_task(rq->curr);
+				}
 			}
 		}
 	}
