@@ -1419,11 +1419,13 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		}
 	}
 	//======================================================
-	else if (policy != SCHED_OTHER) //======= SHORTS - change in condition ======
+	else if (policy != SCHED_OTHER){ //======= SHORTS - change in condition ======
+		p->rt_priority = lp.sched_priority;
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
-	else
+	}
+	else{
 		p->prio = p->static_prio; // should apply to shorts as well
-
+	}
 	p->rt_priority = lp.sched_priority;
 	if (array)
 		activate_task(p, task_rq(p)); // The inner change in activate_task() will provide safe insertion to the new queue (no stupid calcs that we do for OTHERS)
