@@ -37,7 +37,7 @@
 	
 #define STRESS_LEVEL 5000000
 
-#define TRIES 10
+#define TRIES 1
 
 
 struct sched_param param1 = {0, 80, 50};

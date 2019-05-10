@@ -2159,6 +2159,7 @@ int sched_short_place_in_queue(task_t* p)
 {
 	// printk("I'm here!\n");
 	prio_array_t* array;
+	unsigned long flags;
 	list_t *pos, *head;
 	struct runqueue *rq;
   int count = 0, k;
@@ -2169,6 +2170,7 @@ int sched_short_place_in_queue(task_t* p)
 	{
 		rq = task_rq(p);
 		array = rq->short_prio_array;
+		task_rq_lock(p,&flags);
 		for (k = 0; k < MAX_PRIO; k++)
 		{
 	    head = array->queue + k;
@@ -2179,8 +2181,10 @@ int sched_short_place_in_queue(task_t* p)
 
 	    list_for_each(pos, head)
 			{
-	      if(p->prio < k) //===== TODO: Add logic to perfect tests
+	      if(p->prio < k){ //===== TODO: Add logic to perfect tests
+					task_rq_unlock(p,&flags);
 	        return count;
+				}
 	      count++;
 				//printk("p in wait : count = %d\n",count);
 	    }
@@ -2189,21 +2193,22 @@ int sched_short_place_in_queue(task_t* p)
 	//printk("3\n");
   else
 	{
-		for (k = 0; k < MAX_PRIO; k++)
-		{
-	    head = array->queue + k;
-			//head = NULL;
-			// //printk("4\n");
-	    // if (array->bitmap[k]==0)
-	    //   continue;
-
-	    list_for_each(pos, head)
-			{
-	      //printk("PID=%d , in place = %d \n",(list_entry(pos, task_t, run_list))->pid,count); //===== TODO: Add logic to perfect tests
-	      count++;
-	    }
-  	}
-		count = 0;
+		// for (k = 0; k < MAX_PRIO; k++)
+		// {
+	  //   head = array->queue + k;
+		// 	//head = NULL;
+		// 	// //printk("4\n");
+	  //   // if (array->bitmap[k]==0)
+	  //   //   continue;
+		//
+	  //   list_for_each(pos, head)
+		// 	{
+	  //     //printk("PID=%d , in place = %d \n",(list_entry(pos, task_t, run_list))->pid,count); //===== TODO: Add logic to perfect tests
+	  //     count++;
+	  //   }
+  	// }
+		// count = 0;
+		task_rq_lock(p,&flags);
 		for (k = 0; k < MAX_PRIO; k++)
 		{
 	    head = array->queue + k;
@@ -2215,13 +2220,17 @@ int sched_short_place_in_queue(task_t* p)
 	    list_for_each(pos, head)
 			{
 	      if((list_entry(pos, task_t, run_list)) == p) //===== TODO: Add logic to perfect tests
-	        return count;
+				{
+					task_rq_unlock(p,&flags);
+					return count;
+				}
 	      count++;
 				//printk("p in short_prio_array : count = %d\n",count);
 	    }
   	}
 	}
 	//printk("6\n");
+	task_rq_unlock(p,&flags);
   return count;
 }
 
